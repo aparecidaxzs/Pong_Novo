@@ -24,7 +24,7 @@ public class Client : MonoBehaviour
     void Start()
     {
         client = new UdpClient();
-        serverEP = new IPEndPoint(IPAddress.Parse("10.57.10.29"), 5001); // IP do servidor
+        serverEP = new IPEndPoint(IPAddress.Parse("10.57.1.76"), 5001); // IP do servidor
         client.Connect(serverEP);
 
         receiveThread = new Thread(ReceiveData);
@@ -165,8 +165,8 @@ public class Client : MonoBehaviour
                 int scoreB = int.Parse(parts[1]);
 
                 var bolaScript = bola.GetComponent<Bola>();
-                bolaScript.PontoA = scoreA;
-                bolaScript.PontoB = scoreB;
+                bolaScript.PontoTimeA = scoreA;
+                bolaScript.PontoTimeB = scoreB;
                 bolaScript.textoPontoA.text = "Pontos: " + scoreA;
                 bolaScript.textoPontoB.text = "Pontos: " + scoreB;
             }

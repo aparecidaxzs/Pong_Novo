@@ -1,5 +1,6 @@
 using UnityEngine;
 using TMPro;
+using System.Globalization;
 
 public class Bola : MonoBehaviour
 {
@@ -7,53 +8,55 @@ public class Bola : MonoBehaviour
     private Client udpClient;
     private bool bolaLancada = false;
 
-    public int PontoA = 0;
-    public int PontoB = 0;
+    public int PontoTimeA = 0; // Jogadores 1 e 2
+    public int PontoTimeB = 0; // Jogadores 3 e 4
+
     public TextMeshProUGUI textoPontoA;
     public TextMeshProUGUI textoPontoB;
-    public TextMeshProUGUI VitoriaLocal;
-    public TextMeshProUGUI VitoriaRemote;
+    public TextMeshProUGUI VitoriaTimeA;
+    public TextMeshProUGUI VitoriaTimeB;
 
-    public float velocidade = 5f;   // Velocidade base da bola
-    public float fatorDesvio = 2f;  // Quanto influencia o ponto de contato no ângulo
+    public float velocidade = 5f;
+    public float fatorDesvio = 2f;
 
     void Start()
     {
-        
         rb = GetComponent<Rigidbody2D>();
         udpClient = FindObjectOfType<Client>();
 
-        if (udpClient != null && udpClient.myId == 2)
+        // Apenas o jogador 1 (host) lança a bola
+        if (udpClient != null && udpClient.myId == 1)
         {
-            Invoke("LancarBola", 1f);
+            Invoke(nameof(LancarBola), 1f);
         }
-    }
-
-    void LancarBola()
-    {
-        float dirX = Random.Range(0, 2) == 0 ? -1 : 1;
-        float dirY = Random.Range(-0.5f, 0.5f); // inicia com pequeno ângulo
-        rb.linearVelocity = new Vector2(dirX, dirY).normalized * velocidade;
     }
 
     void Update()
     {
         if (udpClient == null) return;
 
-        if (!bolaLancada && udpClient.myId == 2)
+        // Apenas o jogador 1 sincroniza a bola com os outros
+        if (udpClient.myId == 1)
         {
-            bolaLancada = true;
-            Invoke("LancarBola", 1f);
-        }
+            if (!bolaLancada)
+            {
+                bolaLancada = true;
+                Invoke(nameof(LancarBola), 1f);
+            }
 
-        if (udpClient.myId == 2)
-        {
             string msg = "BALL:" +
-                         transform.position.x.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" +
-                         transform.position.y.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                         transform.position.x.ToString(CultureInfo.InvariantCulture) + ";" +
+                         transform.position.y.ToString(CultureInfo.InvariantCulture);
 
             udpClient.SendUdpMessage(msg);
         }
+    }
+
+    void LancarBola()
+    {
+        float dirX = Random.Range(0, 2) == 0 ? -1 : 1;
+        float dirY = Random.Range(-0.5f, 0.5f);
+        rb.linearVelocity = new Vector2(dirX, dirY).normalized * velocidade;
     }
 
     void OnCollisionEnter2D(Collision2D col)
@@ -62,74 +65,80 @@ public class Bola : MonoBehaviour
 
         if (col.gameObject.CompareTag("Raquete"))
         {
-            // Pega o ponto de contato
+            // Rebote dinâmico baseado no ponto de contato
             float posYbola = transform.position.y;
             float posYraquete = col.transform.position.y;
             float alturaRaquete = col.collider.bounds.size.y;
 
-            // Calcula diferença (normalizado entre -1 e 1)
             float diferenca = (posYbola - posYraquete) / (alturaRaquete / 2f);
-
-            // Direção X mantém, Y é baseado na diferença
             Vector2 direcao = new Vector2(Mathf.Sign(rb.linearVelocity.x), diferenca * fatorDesvio);
             rb.linearVelocity = direcao.normalized * velocidade;
         }
-        else if (col.gameObject.CompareTag("Gol1"))
+        else if (col.gameObject.CompareTag("GolEsquerda"))
         {
-            PontoB++;
-            textoPontoB.text = "Pontos:" + PontoB;
-            ResetBola();
+            // Gol contra Time A
+            PontoTimeB++;
+            AtualizarPlacar();
+
+            if (udpClient.myId == 1)
+            {
+                EnviarPlacar();
+                ResetBola();
+            }
         }
-        else if (col.gameObject.CompareTag("Gol2"))
+        else if (col.gameObject.CompareTag("GolDireita"))
         {
-            PontoA++;
-            textoPontoA.text = "Pontos:" + PontoA;
-            ResetBola();
+            // Gol contra Time B
+            PontoTimeA++;
+            AtualizarPlacar();
+
+            if (udpClient.myId == 1)
+            {
+                EnviarPlacar();
+                ResetBola();
+            }
         }
+    }
+
+    void AtualizarPlacar()
+    {
+        textoPontoA.text = "Time A: " + PontoTimeA;
+        textoPontoB.text = "Time B: " + PontoTimeB;
+    }
+
+    void EnviarPlacar()
+    {
+        string msg = "SCORE:" + PontoTimeA + ";" + PontoTimeB;
+        udpClient.SendUdpMessage(msg);
     }
 
     void ResetBola()
     {
         transform.position = Vector3.zero;
         rb.linearVelocity = Vector2.zero;
-        
-        if (PontoA > 10 || PontoB > 10)
+
+        if (PontoTimeA >= 10 || PontoTimeB >= 10)
         {
             GameOver();
         }
-        
-        else if (udpClient != null && udpClient.myId == 2)
+        else
         {
-            Invoke("LancarBola", 1f);
-
-            string msg = "SCORE:" + PontoA + ";" + PontoB;
-            udpClient.SendUdpMessage(msg);
+            Invoke(nameof(LancarBola), 1f);
         }
-        
-        
-
     }
 
     void GameOver()
     {
-        transform.position = Vector3.zero;
         rb.linearVelocity = Vector2.zero;
-        if (PontoA > 10 && udpClient.myId == 1)
+        transform.position = Vector3.zero;
+
+        if (PontoTimeA >= 10)
         {
-            VitoriaLocal.gameObject.SetActive(true);
+            VitoriaTimeA.gameObject.SetActive(true);
         }
-        else if (PontoA > 10 && udpClient.myId == 2)
+        else if (PontoTimeB >= 10)
         {
-            VitoriaRemote.gameObject.SetActive(true);
+            VitoriaTimeB.gameObject.SetActive(true);
         }
-        else if (PontoB > 10 && udpClient.myId == 1)
-        {
-            VitoriaRemote.gameObject.SetActive(true);
-        }
-        else if (PontoB > 10 && udpClient.myId == 2)
-        {
-            VitoriaLocal.gameObject.SetActive(true);
-        }
-        
     }
 }
