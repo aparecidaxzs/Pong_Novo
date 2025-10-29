@@ -4,7 +4,7 @@ using TMPro;
 public class Bola : MonoBehaviour
 {
     private Rigidbody2D rb;
-    private UdpClientTwoClients udpClient;
+    private Client udpClient;
     private bool bolaLancada = false;
 
     public int PontoA = 0;
@@ -21,7 +21,7 @@ public class Bola : MonoBehaviour
     {
         
         rb = GetComponent<Rigidbody2D>();
-        udpClient = FindObjectOfType<UdpClientTwoClients>();
+        udpClient = FindObjectOfType<Client>();
 
         if (udpClient != null && udpClient.myId == 2)
         {
