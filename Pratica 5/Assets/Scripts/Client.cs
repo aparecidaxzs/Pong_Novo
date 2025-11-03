@@ -13,11 +13,12 @@ public class Client : MonoBehaviour
     private Thread receiveThread;
     private IPEndPoint serverEP;
 
-    public GameObject[] players = new GameObject[4]; // Referência aos 4 jogadores
+    public GameObject[] players = new GameObject[4]; // Referência aos 4 jogadores (duplas)
     private Vector3[] remotePositions = new Vector3[4];
 
     public GameObject bola;
     public int Velocidade = 20;
+    private bool jogoTerminado = false; // Flag para impedir movimento após vitória
 
     private ConcurrentQueue<string> messageQueue = new ConcurrentQueue<string>();
 
@@ -51,9 +52,9 @@ public class Client : MonoBehaviour
             ProcessMessage(msg);
         }
 
-        if (myId == -1) return;
+        if (myId == -1 || jogoTerminado) return; // Não move se o jogo acabou
 
-        // Movimento do jogador local
+        // Movimento do jogador local (em duplas, cada um controla sua raquete)
         float v = Input.GetAxis("Vertical");
         if (players[myId - 1] != null)
         {
@@ -99,15 +100,15 @@ public class Client : MonoBehaviour
         if (msg.StartsWith("ASSIGN:"))
         {
             myId = int.Parse(msg.Substring(7));
-            Debug.Log($"[Cliente] Meu ID = {myId}");
+            Debug.Log($"[Cliente] Meu ID = {myId} (duplas: Time A=1-2, Time B=3-4)");
 
-            // Define posições iniciais
+            // Define posições iniciais para duplas (duas raquetes por lado)
             Vector3[] startPositions = new Vector3[]
             {
-                new Vector3(-8f,  2f, 0f),  // Player 1 - Esquerda cima
-                new Vector3(-8f, -2f, 0f),  // Player 2 - Esquerda baixo
-                new Vector3( 8f,  2f, 0f),  // Player 3 - Direita cima
-                new Vector3( 8f, -2f, 0f)   // Player 4 - Direita baixo
+                new Vector3(-8f,  2f, 0f),  // Player 1 - Time A, cima
+                new Vector3(-8f, -2f, 0f),  // Player 2 - Time A, baixo
+                new Vector3( 8f,  2f, 0f),  // Player 3 - Time B, cima
+                new Vector3( 8f, -2f, 0f)   // Player 4 - Time B, baixo
             };
 
             for (int i = 0; i < 4; i++)
@@ -145,7 +146,7 @@ public class Client : MonoBehaviour
         }
         else if (msg.StartsWith("BALL:"))
         {
-            // Bola sincronizada entre todos
+            // Bola sincronizada entre duplas
             string[] parts = msg.Substring(5).Split(';');
             if (parts.Length == 2)
             {
@@ -170,6 +171,11 @@ public class Client : MonoBehaviour
                 bolaScript.textoPontoA.text = "Pontos: " + scoreA;
                 bolaScript.textoPontoB.text = "Pontos: " + scoreB;
             }
+        }
+        else if (msg == "GAMEOVER")
+        {
+            jogoTerminado = true; // Para movimento local
+            Debug.Log("[Cliente] Jogo terminado!");
         }
     }
 
